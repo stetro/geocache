@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Geocache AR</title>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0a1a 0%, #0d1f2d 50%, #1a0a2e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            text-align: center;
+        }
+        .overlay.hidden {
+            display: none;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0, 255, 255, 0.3);
+            border-top-color: #0ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .overlay p {
+            color: #888;
+            font-size: 14px;
+            max-width: 300px;
+            line-height: 1.6;
+        }
+        .overlay h2 {
+            color: #ff4444;
+            margin-bottom: 15px;
+        }
+        #start-btn {
+            background: rgba(0, 255, 255, 0.2);
+            border: 2px solid rgba(0, 255, 255, 0.5);
+            color: #0ff;
+            padding: 15px 40px;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+        }
+        #start-btn:hover {
+            background: rgba(0, 255, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+        }
+        #status {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: #888;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            z-index: 100;
+        }
+        #status.found {
+            color: #0f0;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">Scanning for sign...</div>
+    <div id="loading" class="overlay">
+        <div class="spinner"></div>
+        <p>Initializing camera...<br>Point at the street sign when ready</p>
+    </div>
+    
+    <div id="error" class="overlay hidden">
+        <h2>Camera Error</h2>
+        <p>Could not access camera. Please allow camera permissions and use Safari on iOS or Chrome on Android.</p>
+    </div>
+
+    <div id="start" class="overlay">
+        <p>Tap the button to start the AR camera and point it at the street sign.</p>
+        <button id="start-btn">Start AR Camera</button>
+    </div>
+
+    <a-scene
+        id="ar-scene"
+        mindar-image="imageTargetSrc: sign.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no;"
+        color-space="sRGB"
+        renderer="colorManagement: true"
+        vr-mode-ui="enabled: false"
+        device-orientation-permission-ui="enabled: false"
+        embedded
+    >
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+        <a-entity id="target-entity" mindar-image-target="targetIndex: 0" visible="false">
+            <!-- White box background - positioned below the sign (positive Y = up in image space) -->
+            <a-plane
+                position="0 -0.6 0.01"
+                width="0.8"
+                height="0.2"
+                color="#ffffff"
+                material="shader: flat"
+            ></a-plane>
+            <!-- Key text -->
+            <a-text
+                id="ar-key"
+                value="ABCDEF"
+                position="0 -0.6 0.02"
+                color="#000000"
+                align="center"
+                width="1.5"
+                font="monoid"
+            ></a-text>
+        </a-entity>
+    </a-scene>
+
+    <script>
+        (function() {
+            'use strict';
+
+            const startOverlay = document.getElementById('start');
+            const loadingOverlay = document.getElementById('loading');
+            const errorOverlay = document.getElementById('error');
+            const startBtn = document.getElementById('start-btn');
+            const scene = document.getElementById('ar-scene');
+
+            // Get key from URL parameter
+            function getKeyFromUrl() {
+                const params = new URLSearchParams(window.location.search);
+                return params.get('key');
+            }
+
+            function isValidKey(key) {
+                if (!key || typeof key !== 'string') return false;
+                return /^[A-Za-z0-9]{6}$/.test(key);
+            }
+
+            // Set key text
+            const key = getKeyFromUrl();
+            if (isValidKey(key)) {
+                const textEl = document.getElementById('ar-key');
+                if (textEl) {
+                    textEl.setAttribute('value', key.toUpperCase());
+                }
+            }
+
+            // Hide loading initially, show start button
+            loadingOverlay.classList.add('hidden');
+
+            // Start AR on button click
+            startBtn.addEventListener('click', async function() {
+                startOverlay.classList.add('hidden');
+                loadingOverlay.classList.remove('hidden');
+
+                try {
+                    const arSystem = scene.systems['mindar-image-system'];
+                    await arSystem.start();
+                    loadingOverlay.classList.add('hidden');
+                } catch (err) {
+                    console.error('AR Error:', err);
+                    loadingOverlay.classList.add('hidden');
+                    errorOverlay.classList.remove('hidden');
+                }
+            });
+
+            // Listen for target found/lost
+            const targetEntity = document.getElementById('target-entity');
+            const statusEl = document.getElementById('status');
+            
+            targetEntity.addEventListener('targetFound', function() {
+                console.log('Target found!');
+                targetEntity.setAttribute('visible', 'true');
+                statusEl.textContent = 'Target found!';
+                statusEl.classList.add('found');
+            });
+
+            targetEntity.addEventListener('targetLost', function() {
+                console.log('Target lost');
+                targetEntity.setAttribute('visible', 'false');
+                statusEl.textContent = 'Scanning for sign...';
+                statusEl.classList.remove('found');
+            });
+        })();
+    </script>
+</body>
+</html>
