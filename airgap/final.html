@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,7 +16,8 @@
             box-sizing: border-box;
         }
 
-        html, body {
+        html,
+        body {
             height: 100%;
             width: 100%;
         }
@@ -86,9 +88,20 @@
         }
 
         @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            20%, 60% { transform: translateX(-5px); }
-            40%, 80% { transform: translateX(5px); }
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            20%,
+            60% {
+                transform: translateX(-5px);
+            }
+
+            40%,
+            80% {
+                transform: translateX(5px);
+            }
         }
 
         .row-label {
@@ -105,7 +118,7 @@
             background: rgba(0, 255, 255, 0.05);
             border: 2px solid rgba(0, 255, 255, 0.3);
             border-radius: 12px;
-            box-shadow: 
+            box-shadow:
                 0 0 20px rgba(0, 255, 255, 0.2),
                 inset 0 0 20px rgba(0, 255, 255, 0.05);
         }
@@ -120,6 +133,7 @@
                 opacity: 0;
                 transform: scale(0.9);
             }
+
             to {
                 opacity: 1;
                 transform: scale(1);
@@ -138,7 +152,7 @@
             font-family: 'Orbitron', monospace;
             font-size: 1.3rem;
             color: #fff;
-            text-shadow: 
+            text-shadow:
                 0 0 10px rgba(0, 255, 255, 0.8),
                 0 0 20px rgba(0, 255, 255, 0.5);
             line-height: 1.8;
@@ -162,10 +176,11 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Schlüssel eingeben</h1>
-        
+
         <div class="input-grid">
             <div>
                 <div class="row-label">Schlüssel 1</div>
@@ -205,6 +220,9 @@
         <div id="error-msg">Ungültige Schlüsselkombination. Versuche es erneut.</div>
 
         <div id="result">
+            <p>Autonome Code-Agenten isoliert. Cloud-Infrastruktur im Safe-Mode.
+                Ihr habt es tatsächlich geschafft! Die KI-Pipelines sind eingefroren, die Root-Rechte gehören wieder
+                uns.</p>
             <h2>Finale Koordinaten</h2>
             <div id="coordinates"></div>
         </div>
@@ -213,11 +231,11 @@
     </div>
 
     <script>
-        (function() {
+        (function () {
             'use strict';
 
             // Encrypted coordinates (AES encrypted with key)
-            const ENCRYPTED_DATA = 'U2FsdGVkX1/jq1ntcUOtHfXgzw4LGenGzuF5RLvxB/PLx+JPMR/e/JzEevfoSOlI';
+            const ENCRYPTED_DATA = 'U2FsdGVkX18AeSKMERCDYAnW8PVFuamaxLE0bffoFFxhNKIPEvYGvI5HO1AT5OlwNpP8GeqCScHEk6j/MX3hoQ==';
 
             const rows = document.querySelectorAll('.input-row');
             const resultEl = document.getElementById('result');
@@ -227,12 +245,12 @@
             // Auto-focus and navigation
             rows.forEach((row, rowIndex) => {
                 const inputs = row.querySelectorAll('input');
-                
+
                 inputs.forEach((input, inputIndex) => {
                     input.addEventListener('input', (e) => {
                         const value = e.target.value.toUpperCase();
                         e.target.value = value;
-                        
+
                         // Remove error state
                         input.classList.remove('error');
                         errorEl.classList.remove('visible');
@@ -280,7 +298,7 @@
 
             function checkKey() {
                 const enteredKey = getEnteredKey();
-                
+
                 // Check if all fields are filled
                 let allFilled = true;
                 rows.forEach(row => {
@@ -295,7 +313,7 @@
                 try {
                     // Try to decrypt with entered key
                     const decrypted = CryptoJS.AES.decrypt(ENCRYPTED_DATA, enteredKey).toString(CryptoJS.enc.Utf8);
-                    
+
                     if (decrypted && decrypted.includes(',')) {
                         // Success! Parse and format coordinates
                         const [lat, lon] = decrypted.split(',').map(s => s.trim());
@@ -303,7 +321,7 @@
                         const latMin = ((parseFloat(lat) - latDeg) * 60).toFixed(3);
                         const lonDeg = Math.floor(parseFloat(lon));
                         const lonMin = ((parseFloat(lon) - lonDeg) * 60).toFixed(3);
-                        
+
                         coordsEl.innerHTML = `N ${latDeg}° ${latMin}'<br>E ${lonDeg}° ${lonMin}'`;
                         resultEl.classList.add('visible');
                         errorEl.classList.remove('visible');
@@ -318,7 +336,7 @@
             function showError() {
                 errorEl.classList.add('visible');
                 resultEl.classList.remove('visible');
-                
+
                 // Shake all inputs
                 rows.forEach(row => {
                     row.querySelectorAll('input').forEach(input => {
@@ -332,4 +350,5 @@
         })();
     </script>
 </body>
+
 </html>
