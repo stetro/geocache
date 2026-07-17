@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Wichtel AR - Scanner</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+
+    <!-- A-Frame and MindAR Libraries -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <!-- A-Frame Extras for advanced animations -->
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Outfit', sans-serif;
+        }
+        
+        /* Unified Premium Dark Theme Background */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #05140b 0%, #0c2317 50%, #17122c 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: #fff;
+            padding: 24px;
+            text-align: center;
+        }
+        
+        .overlay.hidden {
+            display: none !important;
+        }
+
+        /* Intro Screen Styling */
+        .card {
+            background: rgba(12, 35, 23, 0.4);
+            border: 1px solid rgba(0, 255, 136, 0.15);
+            border-radius: 24px;
+            padding: 40px 30px;
+            max-width: 440px;
+            width: 100%;
+            backdrop-filter: blur(20px);
+            box-shadow: 
+                0 10px 40px rgba(0, 0, 0, 0.5),
+                0 0 40px rgba(0, 255, 136, 0.05),
+                inset 0 0 20px rgba(0, 255, 136, 0.02);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            font-family: 'Cinzel Decorative', serif;
+            color: #ffd700;
+            font-size: 1.8rem;
+            margin-bottom: 18px;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.35);
+            letter-spacing: 2px;
+        }
+
+        p {
+            color: #a0b0a5;
+            font-size: 1.05rem;
+            line-height: 1.7;
+            margin-bottom: 30px;
+        }
+
+        /* Pulsing Glow Button */
+        .btn-start {
+            background: rgba(0, 255, 136, 0.12);
+            border: 2px solid rgba(0, 255, 136, 0.5);
+            color: #00ff88;
+            padding: 16px 36px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-start:hover {
+            background: rgba(0, 255, 136, 0.25);
+            border-color: #ffd700;
+            color: #ffd700;
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.35);
+        }
+
+        .btn-start svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        /* Spinner & Loading */
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(0, 255, 136, 0.15);
+            border-top-color: #00ff88;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 25px;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        h2 {
+            font-family: 'Cinzel Decorative', serif;
+            color: #ff4444;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+        }
+
+        /* Floating HUD Indicator during scanning */
+        #status {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(5, 20, 11, 0.85);
+            border: 1px solid rgba(0, 255, 136, 0.25);
+            color: #a0b0a5;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-size: 0.95rem;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            letter-spacing: 0.5px;
+        }
+
+        #status.found {
+            color: #00ff88;
+            border-color: #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            font-weight: 600;
+        }
+
+        /* Ensure standard camera view is full size */
+        #ar-scene {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HUD Status Indicator -->
+    <div id="status" class="hidden">Suche nach Wichtel-Schild...</div>
+    
+    <!-- 1. Intro Screen (Landing state) -->
+    <div id="intro" class="overlay">
+        <div class="card">
+            <h1>Wichtel AR</h1>
+            <p>
+                Willkommen im Wichtelwald!<br>
+                Aktiviere das magische Auge deiner Kamera, finde das versteckte Schild und entdecke den Wichtel. Er wird dir den Weg weisen!
+            </p>
+            <button id="btn-start" class="btn-start">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                </svg>
+                Scanner Starten
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. Loading State (Triggered during camera setup) -->
+    <div id="loading" class="overlay hidden">
+        <div class="spinner"></div>
+        <p>Magisches Auge wird initialisiert...<br>Bitte erteile bei Aufforderung den Kamerazugriff.</p>
+    </div>
+    
+    <!-- 3. Error Overlay (Fallback) -->
+    <div id="error" class="overlay hidden">
+        <h2>Verbindungsfehler</h2>
+        <p>Kein Zugriff auf das magische Auge. Bitte erlaube den Kamerazugriff und nutze Safari auf iOS oder Chrome auf Android.</p>
+    </div>
+
+    <!--
+        4. A-Frame Scene (MindAR image tracking):
+        Uses compiled targets.mind with 3 targets:
+        - Index 0: dog → 160 m, arm at 160°
+        - Index 1: butterfly → 216 m, arm at 330°
+        - Index 2: plug → 20 m, arm at 120°
+    -->
+    <a-scene
+        id="ar-scene"
+        mindar-image="imageTargetSrc: targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no;"
+        color-space="sRGB"
+        renderer="colorManagement: true, physicalLights: true"
+        vr-mode-ui="enabled: false"
+        device-orientation-permission-ui="enabled: false"
+        embedded
+    >
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+        <!-- ==================== TARGET 0: DOG (160 m, 160°) ==================== -->
+        <a-entity id="target-dog" mindar-image-target="targetIndex: 0" visible="false">
+            <a-light type="directional" color="#ffffff" intensity="1.4" position="-1 2.5 1.5"></a-light>
+            <a-light type="ambient" color="#2d5a37" intensity="0.5"></a-light>
+
+            <!-- Wichtel rotated so arm points at 160° (Y rotation = 160 - 180 = -20°) -->
+            <a-entity id="wichtel-dog"
+                      position="0 -0.2 0.2"
+                      scale="1.2 1.2 1.2"
+                      rotation="0 -20 0"
+                      animation__jump="property: position; from: 0 -0.2 0.2; to: 0 0 0.2; dur: 400; easing: easeOutQuad; dir: alternate; loop: true"
+            >
+                <!-- Speech Bubble -->
+                <a-entity id="speech-bubble-dog" position="0.55 0.95 0" rotation="0 20 0">
+                    <a-box width="0.95" height="0.45" depth="0.02" color="#ffffff" position="0 0 0" material="opacity: 0.95"></a-box>
+                    <a-box width="0.14" height="0.14" depth="0.02" color="#ffffff" position="-0.35 -0.25 0" rotation="0 0 45" material="opacity: 0.95"></a-box>
+                    <a-text value="160 m" color="#222222" position="0 0 0.02" align="center" width="3.2" font="monoid"></a-text>
+                </a-entity>
+
+                <!-- Block body -->
+                <a-box width="0.3" height="0.4" depth="0.2" color="#2a5a3a" position="0 0 0" material="roughness: 0.8"></a-box>
+                <!-- Block head -->
+                <a-box width="0.28" height="0.28" depth="0.28" color="#e8c8a8" position="0 0.34 0" material="roughness: 0.7"></a-box>
+                <!-- Block hat -->
+                <a-box width="0.32" height="0.08" depth="0.32" color="#aa2222" position="0 0.52 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.24" height="0.2" depth="0.24" color="#aa2222" position="0 0.66 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.16" height="0.15" depth="0.16" color="#aa2222" position="0 0.82 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.08" height="0.08" depth="0.08" color="#ffffff" position="0 0.93 0" material="roughness: 0.9"></a-box>
+                <!-- Block nose -->
+                <a-box width="0.08" height="0.08" depth="0.1" color="#cc8877" position="0 0.3 0.18" material="roughness: 0.7"></a-box>
+                <!-- Pixel eyes -->
+                <a-box width="0.06" height="0.06" depth="0.02" color="#111111" position="-0.06 0.38 0.13"></a-box>
+                <a-box width="0.06" height="0.06" depth="0.02" color="#111111" position="0.06 0.38 0.13"></a-box>
+                <!-- Block beard -->
+                <a-box width="0.22" height="0.12" depth="0.08" color="#dddddd" position="0 0.16 0.1" material="roughness: 0.9"></a-box>
+                <a-box width="0.16" height="0.08" depth="0.06" color="#eeeeee" position="0 0.08 0.12" material="roughness: 0.9"></a-box>
+                <!-- Right Arm -->
+                <a-entity position="0.19 0 0" rotation="0 0 -15">
+                    <a-box width="0.08" height="0.3" depth="0.08" color="#2a5a3a" position="0 -0.05 0" material="roughness: 0.8"></a-box>
+                    <a-box width="0.07" height="0.07" depth="0.07" color="#e8c8a8" position="0 -0.2 0" material="roughness: 0.7"></a-box>
+                </a-entity>
+                <!-- Left Arm (pointing) -->
+                <a-entity position="-0.19 0.1 0" rotation="0 0 70"
+                          animation="property: rotation; from: 0 0 70; to: 0 0 100; dir: alternate; dur: 800; loop: true; easing: easeInOutSine">
+                    <a-box width="0.08" height="0.25" depth="0.08" color="#2a5a3a" position="0 0.12 0" material="roughness: 0.8"></a-box>
+                    <a-box width="0.07" height="0.07" depth="0.07" color="#e8c8a8" position="0 0.28 0" material="roughness: 0.7"></a-box>
+                    <a-box width="0.05" height="0.05" depth="0.05" color="#00ff88" position="0 0.36 0" material="shader: flat; opacity: 0.9"
+                           animation="property: scale; from: 0.8 0.8 0.8; to: 1.3 1.3 1.3; dir: alternate; dur: 400; loop: true; easing: easeInOutSine"></a-box>
+                </a-entity>
+                <!-- Legs -->
+                <a-box width="0.1" height="0.2" depth="0.1" color="#442211" position="-0.08 -0.3 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.1" height="0.2" depth="0.1" color="#442211" position="0.08 -0.3 0" material="roughness: 0.8"></a-box>
+                <!-- Magic ring -->
+                <a-ring color="#00ff88" radius-inner="0.25" radius-outer="0.28" rotation="-90 0 0" position="0 -0.4 0" material="shader: flat; opacity: 0.7"
+                        animation="property: scale; from: 0.85 0.85 0.85; to: 1.15 1.15 1.15; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-ring>
+            </a-entity>
+        </a-entity>
+
+        <!-- ==================== TARGET 1: BUTTERFLY (216 m, 330°) ==================== -->
+        <a-entity id="target-butterfly" mindar-image-target="targetIndex: 1" visible="false">
+            <a-light type="directional" color="#ffffff" intensity="1.4" position="-1 2.5 1.5"></a-light>
+            <a-light type="ambient" color="#2d5a37" intensity="0.5"></a-light>
+
+            <!-- Wichtel rotated so arm points at 330° (Y rotation = 330 - 180 = 150°) -->
+            <a-entity id="wichtel-butterfly"
+                      position="0 -0.2 0.2"
+                      scale="1.2 1.2 1.2"
+                      rotation="0 150 0"
+                      animation__jump="property: position; from: 0 -0.2 0.2; to: 0 0 0.2; dur: 400; easing: easeOutQuad; dir: alternate; loop: true"
+            >
+                <!-- Speech Bubble -->
+                <a-entity id="speech-bubble-butterfly" position="0.55 0.95 0" rotation="0 -150 0">
+                    <a-box width="0.95" height="0.45" depth="0.02" color="#ffffff" position="0 0 0" material="opacity: 0.95"></a-box>
+                    <a-box width="0.14" height="0.14" depth="0.02" color="#ffffff" position="-0.35 -0.25 0" rotation="0 0 45" material="opacity: 0.95"></a-box>
+                    <a-text value="216 m" color="#222222" position="0 0 0.02" align="center" width="3.2" font="monoid"></a-text>
+                </a-entity>
+
+                <!-- Block body -->
+                <a-box width="0.3" height="0.4" depth="0.2" color="#2a5a3a" position="0 0 0" material="roughness: 0.8"></a-box>
+                <!-- Block head -->
+                <a-box width="0.28" height="0.28" depth="0.28" color="#e8c8a8" position="0 0.34 0" material="roughness: 0.7"></a-box>
+                <!-- Block hat -->
+                <a-box width="0.32" height="0.08" depth="0.32" color="#aa2222" position="0 0.52 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.24" height="0.2" depth="0.24" color="#aa2222" position="0 0.66 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.16" height="0.15" depth="0.16" color="#aa2222" position="0 0.82 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.08" height="0.08" depth="0.08" color="#ffffff" position="0 0.93 0" material="roughness: 0.9"></a-box>
+                <!-- Block nose -->
+                <a-box width="0.08" height="0.08" depth="0.1" color="#cc8877" position="0 0.3 0.18" material="roughness: 0.7"></a-box>
+                <!-- Pixel eyes -->
+                <a-box width="0.06" height="0.06" depth="0.02" color="#111111" position="-0.06 0.38 0.13"></a-box>
+                <a-box width="0.06" height="0.06" depth="0.02" color="#111111" position="0.06 0.38 0.13"></a-box>
+                <!-- Block beard -->
+                <a-box width="0.22" height="0.12" depth="0.08" color="#dddddd" position="0 0.16 0.1" material="roughness: 0.9"></a-box>
+                <a-box width="0.16" height="0.08" depth="0.06" color="#eeeeee" position="0 0.08 0.12" material="roughness: 0.9"></a-box>
+                <!-- Right Arm -->
+                <a-entity position="0.19 0 0" rotation="0 0 -15">
+                    <a-box width="0.08" height="0.3" depth="0.08" color="#2a5a3a" position="0 -0.05 0" material="roughness: 0.8"></a-box>
+                    <a-box width="0.07" height="0.07" depth="0.07" color="#e8c8a8" position="0 -0.2 0" material="roughness: 0.7"></a-box>
+                </a-entity>
+                <!-- Left Arm (pointing) -->
+                <a-entity position="-0.19 0.1 0" rotation="0 0 70"
+                          animation="property: rotation; from: 0 0 70; to: 0 0 100; dir: alternate; dur: 800; loop: true; easing: easeInOutSine">
+                    <a-box width="0.08" height="0.25" depth="0.08" color="#2a5a3a" position="0 0.12 0" material="roughness: 0.8"></a-box>
+                    <a-box width="0.07" height="0.07" depth="0.07" color="#e8c8a8" position="0 0.28 0" material="roughness: 0.7"></a-box>
+                    <a-box width="0.05" height="0.05" depth="0.05" color="#00ff88" position="0 0.36 0" material="shader: flat; opacity: 0.9"
+                           animation="property: scale; from: 0.8 0.8 0.8; to: 1.3 1.3 1.3; dir: alternate; dur: 400; loop: true; easing: easeInOutSine"></a-box>
+                </a-entity>
+                <!-- Legs -->
+                <a-box width="0.1" height="0.2" depth="0.1" color="#442211" position="-0.08 -0.3 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.1" height="0.2" depth="0.1" color="#442211" position="0.08 -0.3 0" material="roughness: 0.8"></a-box>
+                <!-- Magic ring -->
+                <a-ring color="#00ff88" radius-inner="0.25" radius-outer="0.28" rotation="-90 0 0" position="0 -0.4 0" material="shader: flat; opacity: 0.7"
+                        animation="property: scale; from: 0.85 0.85 0.85; to: 1.15 1.15 1.15; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-ring>
+            </a-entity>
+        </a-entity>
+
+        <!-- ==================== TARGET 2: PLUG (20 m, 120°) ==================== -->
+        <a-entity id="target-plug" mindar-image-target="targetIndex: 2" visible="false">
+            <a-light type="directional" color="#ffffff" intensity="1.4" position="-1 2.5 1.5"></a-light>
+            <a-light type="ambient" color="#2d5a37" intensity="0.5"></a-light>
+
+            <!-- Wichtel rotated so arm points at 120° (Y rotation = 120 - 180 = -60°) -->
+            <a-entity id="wichtel-plug"
+                      position="0 -0.2 0.2"
+                      scale="1.2 1.2 1.2"
+                      rotation="0 -60 0"
+                      animation__jump="property: position; from: 0 -0.2 0.2; to: 0 0 0.2; dur: 400; easing: easeOutQuad; dir: alternate; loop: true"
+            >
+                <!-- Speech Bubble -->
+                <a-entity id="speech-bubble-plug" position="0.55 0.95 0" rotation="0 60 0">
+                    <a-box width="0.95" height="0.45" depth="0.02" color="#ffffff" position="0 0 0" material="opacity: 0.95"></a-box>
+                    <a-box width="0.14" height="0.14" depth="0.02" color="#ffffff" position="-0.35 -0.25 0" rotation="0 0 45" material="opacity: 0.95"></a-box>
+                    <a-text value="20 m" color="#222222" position="0 0 0.02" align="center" width="3.2" font="monoid"></a-text>
+                </a-entity>
+
+                <!-- Block body -->
+                <a-box width="0.3" height="0.4" depth="0.2" color="#2a5a3a" position="0 0 0" material="roughness: 0.8"></a-box>
+                <!-- Block head -->
+                <a-box width="0.28" height="0.28" depth="0.28" color="#e8c8a8" position="0 0.34 0" material="roughness: 0.7"></a-box>
+                <!-- Block hat -->
+                <a-box width="0.32" height="0.08" depth="0.32" color="#aa2222" position="0 0.52 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.24" height="0.2" depth="0.24" color="#aa2222" position="0 0.66 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.16" height="0.15" depth="0.16" color="#aa2222" position="0 0.82 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.08" height="0.08" depth="0.08" color="#ffffff" position="0 0.93 0" material="roughness: 0.9"></a-box>
+                <!-- Block nose -->
+                <a-box width="0.08" height="0.08" depth="0.1" color="#cc8877" position="0 0.3 0.18" material="roughness: 0.7"></a-box>
+                <!-- Pixel eyes -->
+                <a-box width="0.06" height="0.06" depth="0.02" color="#111111" position="-0.06 0.38 0.13"></a-box>
+                <a-box width="0.06" height="0.06" depth="0.02" color="#111111" position="0.06 0.38 0.13"></a-box>
+                <!-- Block beard -->
+                <a-box width="0.22" height="0.12" depth="0.08" color="#dddddd" position="0 0.16 0.1" material="roughness: 0.9"></a-box>
+                <a-box width="0.16" height="0.08" depth="0.06" color="#eeeeee" position="0 0.08 0.12" material="roughness: 0.9"></a-box>
+                <!-- Right Arm -->
+                <a-entity position="0.19 0 0" rotation="0 0 -15">
+                    <a-box width="0.08" height="0.3" depth="0.08" color="#2a5a3a" position="0 -0.05 0" material="roughness: 0.8"></a-box>
+                    <a-box width="0.07" height="0.07" depth="0.07" color="#e8c8a8" position="0 -0.2 0" material="roughness: 0.7"></a-box>
+                </a-entity>
+                <!-- Left Arm (pointing) -->
+                <a-entity position="-0.19 0.1 0" rotation="0 0 70"
+                          animation="property: rotation; from: 0 0 70; to: 0 0 100; dir: alternate; dur: 800; loop: true; easing: easeInOutSine">
+                    <a-box width="0.08" height="0.25" depth="0.08" color="#2a5a3a" position="0 0.12 0" material="roughness: 0.8"></a-box>
+                    <a-box width="0.07" height="0.07" depth="0.07" color="#e8c8a8" position="0 0.28 0" material="roughness: 0.7"></a-box>
+                    <a-box width="0.05" height="0.05" depth="0.05" color="#00ff88" position="0 0.36 0" material="shader: flat; opacity: 0.9"
+                           animation="property: scale; from: 0.8 0.8 0.8; to: 1.3 1.3 1.3; dir: alternate; dur: 400; loop: true; easing: easeInOutSine"></a-box>
+                </a-entity>
+                <!-- Legs -->
+                <a-box width="0.1" height="0.2" depth="0.1" color="#442211" position="-0.08 -0.3 0" material="roughness: 0.8"></a-box>
+                <a-box width="0.1" height="0.2" depth="0.1" color="#442211" position="0.08 -0.3 0" material="roughness: 0.8"></a-box>
+                <!-- Magic ring -->
+                <a-ring color="#00ff88" radius-inner="0.25" radius-outer="0.28" rotation="-90 0 0" position="0 -0.4 0" material="shader: flat; opacity: 0.7"
+                        animation="property: scale; from: 0.85 0.85 0.85; to: 1.15 1.15 1.15; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-ring>
+            </a-entity>
+        </a-entity>
+
+    </a-scene>
+
+    <script>
+        (function() {
+            'use strict';
+
+            const introScreen = document.getElementById('intro');
+            const loadingOverlay = document.getElementById('loading');
+            const errorOverlay = document.getElementById('error');
+            const startBtn = document.getElementById('btn-start');
+            const scene = document.getElementById('ar-scene');
+            const statusHUD = document.getElementById('status');
+            
+            const targets = [
+                document.getElementById('target-dog'),
+                document.getElementById('target-butterfly'),
+                document.getElementById('target-plug')
+            ];
+
+            // Launch AR Experience on click
+            startBtn.addEventListener('click', async function() {
+                introScreen.classList.add('hidden');
+                loadingOverlay.classList.remove('hidden');
+
+                try {
+                    const arSystem = scene.systems['mindar-image-system'];
+                    await arSystem.start();
+                    loadingOverlay.classList.add('hidden');
+                    statusHUD.classList.remove('hidden');
+                } catch (err) {
+                    console.error('AR Initialization Error:', err);
+                    loadingOverlay.classList.add('hidden');
+                    errorOverlay.classList.remove('hidden');
+                }
+            });
+
+            // Target Tracking Listeners for all 3 targets
+            targets.forEach((target, index) => {
+                const names = ['Hund', 'Schmetterling', 'Stecker'];
+                
+                target.addEventListener('targetFound', function() {
+                    console.log(`Target ${index} (${names[index]}) found!`);
+                    target.setAttribute('visible', 'true');
+                    statusHUD.textContent = `Wichtel gefunden! (${names[index]})`;
+                    statusHUD.classList.add('found');
+                });
+
+                target.addEventListener('targetLost', function() {
+                    console.log(`Target ${index} (${names[index]}) lost`);
+                    target.setAttribute('visible', 'false');
+                    statusHUD.textContent = 'Suche nach Wichtel-Schild...';
+                    statusHUD.classList.remove('found');
+                });
+            });
+        })();
+    </script>
+</body>
+</html>
